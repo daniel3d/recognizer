@@ -77,7 +77,22 @@ class SelectorBIC(ModelSelector):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # TODO implement model selection based on BIC scores
-        raise NotImplementedError
+        score = float("inf")
+        model = self.base_model(self.n_constant)
+
+        for c in range(self.min_n_components, self.max_n_components + 1):
+            try:
+                p = c**2 + 2*c*len((self.X[0])) - 1
+                testModel = self.base_model(c)
+                logL = testModel.score(self.X, self.lengths)
+                bicScore = -2 * logL + p * math.log(len(self.X))
+                if bicScore < score:
+                    score = bicScore
+                    model = testModel
+            except:
+                pass
+
+        return model
 
 
 class SelectorDIC(ModelSelector):
@@ -93,7 +108,26 @@ class SelectorDIC(ModelSelector):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # TODO implement model selection based on DIC scores
-        raise NotImplementedError
+        score = float("-inf")
+        model = self.base_model(self.n_constant)
+
+        for c in range(self.min_n_components, self.max_n_components + 1):
+            try:
+                testModel = self.base_model(c)
+                logL = testModel.score(self.X, self.lengths)
+                logAverage = []
+                for i in self.hwords:
+                    x, l = self.hwords[i]
+                    logAverage.append(testModel.score(x, l))
+
+                dicScore = logL - np.average(logAverage)
+                if dicScore > score:
+                    score = dicScore
+                    model = testModel
+            except:
+                pass
+
+        return model
 
 
 class SelectorCV(ModelSelector):
@@ -105,4 +139,26 @@ class SelectorCV(ModelSelector):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # TODO implement model selection using CV
-        raise NotImplementedError
+        score = float("-inf")
+        model = self.base_model(self.n_constant)
+
+        if len(self.sequences) < 3:
+            return model
+
+        for c in range(self.min_n_components, self.max_n_components + 1):
+            splitMethod = KFold(min(3, len(self.sequences)))
+            scores = []
+            for train, test in splitMethod.split(self.sequences):
+                try:
+                    testModel = self.base_model(c)
+                    x, l = combine_sequences(test, self.sequences)
+                    scores.append(testModel.score(x,l))
+                except:
+                    pass
+
+                averageScore = np.average(scores)
+                if averageScore > score:
+                    score = averageScore
+                    model = testModel
+
+        return model
